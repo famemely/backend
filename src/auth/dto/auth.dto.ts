@@ -1,83 +1,77 @@
-import { IsEmail, IsString, MinLength, IsOptional, IsBoolean, IsNumber, Min, Max } from 'class-validator';
+import {
+  IsEmail,
+  IsString,
+  MinLength,
+  IsOptional,
+  IsBoolean,
+  IsNumber,
+  Min,
+  Max
+} from 'class-validator'
 
 export class EmailSignupDto {
   @IsEmail()
-  email: string;
+  email: string
 
   @IsString()
   @MinLength(6)
-  password: string;
+  password: string
 
   @IsString()
   @MinLength(2)
-  fullName: string;
+  fullName: string
 
   @IsOptional()
   @IsString()
-  phoneNumber?: string;
+  phoneNumber?: string
+
+  @IsOptional()
+  @IsString()
+  // Expecting ISO date string YYYY-MM-DD
+  dateOfBirth?: string
 }
 
 export class EmailLoginDto {
   @IsEmail()
-  email: string;
+  email: string
 
   @IsString()
-  password: string;
+  password: string
 
   @IsOptional()
   @IsString()
-  totpCode?: string;
+  totpCode?: string
 }
 
 export class GoogleAuthDto {
   @IsString()
-  idToken: string;
+  idToken: string
 }
 
-export class Under13SignupDto {
-  @IsString()
-  @MinLength(3)
-  username: string;
-
-  @IsString()
-  @MinLength(2)
-  fullName: string;
-
-  @IsNumber()
-  @Min(1)
-  @Max(12)
-  age: number;
-
-  @IsString()
-  @MinLength(6)
-  password: string;
-
-  @IsString()
-  parentEmail: string;
-}
+// Under13SignupDto removed — children/under-13 signup flow discontinued.
 
 export class VerifyTokenDto {
   @IsString()
-  supabaseToken: string;
+  supabaseToken: string
 }
 
 export class Setup2FADto {
   @IsString()
   @MinLength(6)
-  totpCode: string;
+  totpCode: string
 }
 
 export class Verify2FADto {
   @IsString()
   @MinLength(6)
-  totpCode: string;
+  totpCode: string
 }
 
 export class Disable2FADto {
   @IsString()
-  password: string;
+  password: string
 
   @IsOptional()
   @IsString()
-  totpCode?: string;
+  totpCode?: string
 }
