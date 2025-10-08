@@ -4,7 +4,7 @@ import { join } from 'path';
 describe('Environment Configuration Validation', () => {
   let envContent: string;
   let envVariables: Record<string, string>;
-
+    
   beforeAll(() => {
     const envPath = join(process.cwd(), '.env.example');
     envContent = readFileSync(envPath, 'utf-8');
