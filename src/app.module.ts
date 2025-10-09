@@ -4,6 +4,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { SupabaseModule } from './supabase/supabase.module';
+import { MqttModule } from './mqtt/mqtt.module';
 
 @Module({
   imports: [
@@ -12,6 +13,7 @@ import { SupabaseModule } from './supabase/supabase.module';
     }),
     AuthModule,
     SupabaseModule,
+    MqttModule,
   ],
   controllers: [AppController],
   providers: [AppService],
