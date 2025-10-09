@@ -8,6 +8,7 @@ import { RedisModule } from './redis/redis.module'
 import { CacheModule } from './cache/cache.module'
 import { LocationModule } from './location/location.module'
 import { WebSocketModule } from './websocket/websocket.module'
+import { BoardModule } from './board/board.module'
 
 @Module({
   imports: [
@@ -19,7 +20,8 @@ import { WebSocketModule } from './websocket/websocket.module'
     RedisModule,
     CacheModule,
     LocationModule,
-    WebSocketModule
+    WebSocketModule,
+    BoardModule
   ],
   controllers: [AppController],
   providers: [AppService]
