@@ -444,7 +444,7 @@ export class WebSocketGatewayService
         `Cache invalidated for user ${removed_user_id} leaving family ${family_id}`
       )
 
-      // Broadcast to all family members
+      // Broadcast to all family members,
       this.server.to(`family:${family_id}`).emit('family_member_removed', {
         family_id,
         user_id: removed_user_id,
