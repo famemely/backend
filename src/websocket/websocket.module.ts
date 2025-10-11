@@ -4,6 +4,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config'
 import { WebSocketGatewayService } from './websocket.gateway'
 import { CacheModule } from '../cache/cache.module'
 import { LocationModule } from '../location/location.module'
+import { GhostModeModule } from '../ghost-mode/ghost-mode.module'
 
 @Module({
   imports: [
@@ -16,7 +17,8 @@ import { LocationModule } from '../location/location.module'
       })
     }),
     CacheModule,
-    LocationModule
+    LocationModule,
+    GhostModeModule
   ],
   providers: [WebSocketGatewayService],
   exports: [WebSocketGatewayService]

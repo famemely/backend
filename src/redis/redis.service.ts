@@ -98,7 +98,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   async readStream(
     streamKey: string,
     count: number = 100,
-    lastId: string = '-'
+    lastId: string = '0' // Changed from '-' to '0' (read from beginning)
   ): Promise<any[]> {
     try {
       const results = await this.redisClient.xread(

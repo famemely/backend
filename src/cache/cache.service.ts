@@ -49,6 +49,7 @@ export class CacheService {
     try {
       // Try cache first
       const cached = await this.redisService.get<FamilyMember[]>(cacheKey)
+      console.log('Cached family members:', cached)
       if (cached) {
         this.logger.debug(`Cache hit for family members: ${familyId}`)
         return cached
@@ -107,6 +108,21 @@ export class CacheService {
     const cacheKey = `family:${familyId}:members`
     await this.redisService.del(cacheKey)
     this.logger.log(`Invalidated family members cache: ${familyId}`)
+  }
+
+  /**
+   * Update family members cache after a change
+   */
+  async updateFamilyMembersCache(familyId: string): Promise<void> {
+    this.logger.log(`Updating family members cache: ${familyId}`)
+
+    // Invalidate first
+    await this.invalidateFamilyMembers(familyId)
+
+    // Fetch fresh data which will automatically cache it
+    await this.getFamilyMembers(familyId)
+
+    this.logger.log(`Family members cache updated: ${familyId}`)
   }
 
   /**
@@ -171,6 +187,21 @@ export class CacheService {
     this.logger.log(`Invalidated user families cache: ${userId}`)
   }
 
+  /**
+   * Update user families cache after a change
+   */
+  async updateUserFamiliesCache(userId: string): Promise<void> {
+    this.logger.log(`Updating user families cache: ${userId}`)
+
+    // Invalidate first
+    await this.invalidateUserFamilies(userId)
+
+    // Fetch fresh data which will automatically cache it
+    await this.getUserFamilyIds(userId)
+
+    this.logger.log(`User families cache updated: ${userId}`)
+  }
+
   // ==================== GEOFENCES ====================
 
   async getGeofences(familyId: string): Promise<Geofence[]> {
@@ -220,6 +251,21 @@ export class CacheService {
     const cacheKey = `geofence:${familyId}`
     await this.redisService.del(cacheKey)
     this.logger.log(`Invalidated geofences cache: ${familyId}`)
+  }
+
+  /**
+   * Update geofences cache after a change
+   */
+  async updateGeofencesCache(familyId: string): Promise<void> {
+    this.logger.log(`Updating geofences cache: ${familyId}`)
+
+    // Invalidate first
+    await this.invalidateGeofences(familyId)
+
+    // Fetch fresh data which will automatically cache it
+    await this.getGeofences(familyId)
+
+    this.logger.log(`Geofences cache updated: ${familyId}`)
   }
 
   // ==================== LOCATIONS ====================
@@ -345,6 +391,187 @@ export class CacheService {
     const cacheKey = `user:${userId}:family:${familyId}:role`
     await this.redisService.del(cacheKey)
     this.logger.log(`Invalidated user role cache: ${userId} in ${familyId}`)
+  }
+
+  /**
+   * Update user role cache after a change
+   */
+  async updateUserRoleCache(userId: string, familyId: string): Promise<void> {
+    this.logger.log(`Updating user role cache: ${userId} in ${familyId}`)
+
+    // Invalidate first
+    await this.invalidateUserRole(userId, familyId)
+
+    // Fetch fresh data which will automatically cache it
+    await this.getUserRole(userId, familyId)
+
+    this.logger.log(`User role cache updated: ${userId} in ${familyId}`)
+  }
+
+  // ==================== COMPREHENSIVE INVALIDATION ====================
+
+  /**
+   * Invalidate all cache entries for a specific family
+   * Use this when a family is deleted or major changes occur
+   */
+  async invalidateAllFamilyCache(familyId: string): Promise<void> {
+    this.logger.log(`Invalidating all cache for family: ${familyId}`)
+
+    const deletePromises: Promise<void>[] = [
+      this.invalidateFamilyMembers(familyId),
+      this.invalidateGeofences(familyId)
+    ]
+
+    // Get all members to invalidate their roles and locations
+    try {
+      const members = await this.getFamilyMembers(familyId)
+
+      members.forEach((member) => {
+        deletePromises.push(this.invalidateUserRole(member.user_id, familyId))
+        deletePromises.push(
+          this.redisService.del(
+            `user:${member.user_id}:family:${familyId}:last_location`
+          )
+        )
+        deletePromises.push(
+          this.redisService.del(
+            `user:${member.user_id}:family:${familyId}:online`
+          )
+        )
+      })
+    } catch (error) {
+      this.logger.error(`Error getting members for cache invalidation:`, error)
+    }
+
+    await Promise.all(deletePromises)
+    this.logger.log(`All cache invalidated for family: ${familyId}`)
+  }
+
+  /**
+   * Invalidate all cache entries for a specific user
+   * Use this when a user is deleted or leaves all families
+   */
+  async invalidateAllUserCache(userId: string): Promise<void> {
+    this.logger.log(`Invalidating all cache for user: ${userId}`)
+
+    const deletePromises: Promise<void>[] = [
+      this.invalidateUserFamilies(userId)
+    ]
+
+    // Get all families to invalidate user's data in each family
+    try {
+      const familyIds = await this.getUserFamilyIds(userId)
+
+      familyIds.forEach((familyId) => {
+        deletePromises.push(this.invalidateUserRole(userId, familyId))
+        deletePromises.push(
+          this.redisService.del(
+            `user:${userId}:family:${familyId}:last_location`
+          )
+        )
+        deletePromises.push(
+          this.redisService.del(`user:${userId}:family:${familyId}:online`)
+        )
+      })
+    } catch (error) {
+      this.logger.error(`Error getting families for cache invalidation:`, error)
+    }
+
+    await Promise.all(deletePromises)
+    this.logger.log(`All cache invalidated for user: ${userId}`)
+  }
+
+  /**
+   * Invalidate cache when a user joins a family
+   */
+  async invalidateCacheOnUserJoin(
+    userId: string,
+    familyId: string
+  ): Promise<void> {
+    this.logger.log(
+      `Invalidating cache for user ${userId} joining family ${familyId}`
+    )
+
+    await Promise.all([
+      this.invalidateUserFamilies(userId),
+      this.invalidateFamilyMembers(familyId)
+    ])
+
+    this.logger.log(`Cache invalidated for user join event`)
+  }
+
+  /**
+   * Invalidate cache when a user leaves a family
+   */
+  async invalidateCacheOnUserLeave(
+    userId: string,
+    familyId: string
+  ): Promise<void> {
+    this.logger.log(
+      `Invalidating cache for user ${userId} leaving family ${familyId}`
+    )
+
+    await Promise.all([
+      this.invalidateUserFamilies(userId),
+      this.invalidateFamilyMembers(familyId),
+      this.invalidateUserRole(userId, familyId),
+      this.redisService.del(`user:${userId}:family:${familyId}:last_location`),
+      this.redisService.del(`user:${userId}:family:${familyId}:online`)
+    ])
+
+    this.logger.log(`Cache invalidated for user leave event`)
+  }
+
+  /**
+   * Update all cache for a family (refresh from database)
+   */
+  async updateAllFamilyCache(familyId: string): Promise<void> {
+    this.logger.log(`Updating all cache for family: ${familyId}`)
+
+    await Promise.all([
+      this.updateFamilyMembersCache(familyId),
+      this.updateGeofencesCache(familyId)
+    ])
+
+    this.logger.log(`All cache updated for family: ${familyId}`)
+  }
+
+  /**
+   * Invalidate location cache for a user in a family
+   */
+  async invalidateUserLocation(
+    userId: string,
+    familyId: string
+  ): Promise<void> {
+    const cacheKey = `user:${userId}:family:${familyId}:last_location`
+    await this.redisService.del(cacheKey)
+    this.logger.log(
+      `Invalidated location cache for user ${userId} in family ${familyId}`
+    )
+  }
+
+  /**
+   * Invalidate location cache for all members in a family
+   */
+  async invalidateAllFamilyLocations(familyId: string): Promise<void> {
+    this.logger.log(`Invalidating all location cache for family: ${familyId}`)
+
+    try {
+      const members = await this.getFamilyMembers(familyId)
+
+      const deletePromises = members.map((member) =>
+        this.redisService.del(
+          `user:${member.user_id}:family:${familyId}:last_location`
+        )
+      )
+
+      await Promise.all(deletePromises)
+      this.logger.log(
+        `Invalidated location cache for ${members.length} members in family ${familyId}`
+      )
+    } catch (error) {
+      this.logger.error(`Error invalidating family locations:`, error)
+    }
   }
 
   // ==================== ONLINE STATUS ====================

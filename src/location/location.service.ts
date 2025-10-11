@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { RedisService } from '../redis/redis.service'
 import { CacheService } from '../cache/cache.service'
+import { GhostModeService } from '../ghost-mode/ghost-mode.service'
 import { LocationUpdateDto } from './dto/location.dto'
 
 @Injectable()
@@ -9,7 +10,8 @@ export class LocationService {
 
   constructor(
     private redisService: RedisService,
-    private cacheService: CacheService
+    private cacheService: CacheService,
+    private ghostModeService: GhostModeService
   ) {}
 
   /**
@@ -19,12 +21,38 @@ export class LocationService {
     const { family_id, ...locationData } = locationDto
 
     try {
+      // Check ghost mode status
+      const ghostStatus = await this.ghostModeService.isGhostModeEnabled(
+        userId,
+        family_id
+      )
+
+      let finalLocation = {
+        latitude: locationData.latitude,
+        longitude: locationData.longitude,
+        accuracy: locationData.accuracy
+      }
+
+      // Apply location masking if ghost mode is enabled
+      if (ghostStatus.enabled) {
+        finalLocation = this.ghostModeService.maskLocation(finalLocation)
+        this.logger.debug(
+          `Ghost mode active for user ${userId} (${ghostStatus.scope}), location masked`
+        )
+      }
+
       // 1. Add to Redis Stream for durability
       const streamKey = `locations:family:${family_id}`
       const messageId = await this.redisService.addToStream(streamKey, {
         user_id: userId,
         family_id,
-        ...locationData,
+        latitude: finalLocation.latitude,
+        longitude: finalLocation.longitude,
+        accuracy: finalLocation.accuracy,
+        timestamp: locationData.timestamp,
+        batteryLevel: locationData.batteryLevel,
+        ghost_mode: ghostStatus.enabled,
+        ghost_scope: ghostStatus.scope,
         server_timestamp: Date.now()
       })
 
@@ -34,9 +62,9 @@ export class LocationService {
       await this.cacheService.setLastLocation({
         user_id: userId,
         family_id,
-        latitude: locationData.latitude,
-        longitude: locationData.longitude,
-        accuracy: locationData.accuracy,
+        latitude: finalLocation.latitude,
+        longitude: finalLocation.longitude,
+        accuracy: finalLocation.accuracy,
         timestamp: locationData.timestamp,
         batteryLevel: locationData.batteryLevel
       })
@@ -47,15 +75,15 @@ export class LocationService {
         type: 'location_update',
         user_id: userId,
         family_id,
-        latitude: locationData.latitude,
-        longitude: locationData.longitude,
-        accuracy: locationData.accuracy,
+        latitude: finalLocation.latitude,
+        longitude: finalLocation.longitude,
+        accuracy: finalLocation.accuracy,
         timestamp: locationData.timestamp,
         batteryLevel: locationData.batteryLevel
       })
 
       this.logger.log(
-        `Location update processed for user ${userId} in family ${family_id}`
+        `Location update processed for user ${userId} in family ${family_id}${ghostStatus.enabled ? ' (ghost mode)' : ''}`
       )
 
       return {
