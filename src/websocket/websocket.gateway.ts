@@ -167,6 +167,16 @@ export class WebSocketGatewayService
     @MessageBody() data: any
   ): Promise<{ success: boolean; timestamp: number }> {
     try {
+      this.logger.log(
+        `location_update received from user ${client.userId}: ` +
+          JSON.stringify({
+            family_id: data?.family_id,
+            lat: data?.latitude,
+            lng: data?.longitude,
+            acc: data?.accuracy,
+            ts: data?.timestamp
+          })
+      )
       const {
         family_id,
         latitude,

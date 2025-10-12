@@ -75,6 +75,9 @@ export class LocationService {
         timestamp: locationData.timestamp,
         batteryLevel: locationData.batteryLevel
       })
+      this.logger.debug(
+        `Cache updated for user ${userId} in family ${family_id} @ ${locationData.timestamp}`
+      )
 
       // 3. Publish to Pub/Sub for real-time broadcast
       const broadcastChannel = `family:${family_id}:location`
@@ -90,6 +93,9 @@ export class LocationService {
         batteryLevel: locationData.batteryLevel,
         batteryState: locationData.batteryState
       })
+      this.logger.debug(
+        `Broadcasted to ${broadcastChannel} for user ${userId} (${userName})`
+      )
 
       this.logger.log(
         `Location update processed for user ${userName} (${userId}) in family ${family_id}${ghostStatus.enabled ? ' (ghost mode)' : ''}`
