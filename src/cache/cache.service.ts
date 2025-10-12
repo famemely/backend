@@ -35,11 +35,15 @@ interface LocationCache {
 export class CacheService {
   private readonly logger = new Logger(CacheService.name)
   private readonly TTL = 3600 // 1 hour
+  private readonly cacheEnabled: boolean
 
   constructor(
     private redisService: RedisService,
     private supabaseService: SupabaseService
-  ) {}
+  ) {
+    this.cacheEnabled = process.env.CACHE_ENABLED !== 'false'
+    this.logger.log(`Cache ${this.cacheEnabled ? 'ENABLED' : 'DISABLED'}`)
+  }
 
   // ==================== FAMILY MEMBERS ====================
 
@@ -47,12 +51,14 @@ export class CacheService {
     const cacheKey = `family:${familyId}:members`
 
     try {
-      // Try cache first
-      const cached = await this.redisService.get<FamilyMember[]>(cacheKey)
-      console.log('Cached family members:', cached)
-      if (cached) {
-        this.logger.debug(`Cache hit for family members: ${familyId}`)
-        return cached
+      // Try cache first (if enabled)
+      if (this.cacheEnabled) {
+        const cached = await this.redisService.get<FamilyMember[]>(cacheKey)
+        console.log('Cached family members:', cached)
+        if (cached) {
+          this.logger.debug(`Cache hit for family members: ${familyId}`)
+          return cached
+        }
       }
 
       // Cache miss - fetch from database using admin client (bypasses RLS)
@@ -94,8 +100,10 @@ export class CacheService {
         joined_at: item.joined_at
       }))
 
-      // Cache the result
-      await this.redisService.set(cacheKey, members, this.TTL)
+      // Cache the result (if enabled)
+      if (this.cacheEnabled) {
+        await this.redisService.set(cacheKey, members, this.TTL)
+      }
 
       return members
     } catch (error) {
@@ -132,11 +140,13 @@ export class CacheService {
     const cacheKey = `user:${userId}:families`
 
     try {
-      // Try cache first
-      const cached = await this.redisService.get<string[]>(cacheKey)
-      if (cached) {
-        this.logger.debug(`Cache hit for user families: ${userId}`)
-        return cached
+      // Try cache first (if enabled)
+      if (this.cacheEnabled) {
+        const cached = await this.redisService.get<string[]>(cacheKey)
+        if (cached) {
+          this.logger.debug(`Cache hit for user families: ${userId}`)
+          return cached
+        }
       }
 
       // Cache miss - fetch from database using admin client (bypasses RLS)
@@ -169,8 +179,8 @@ export class CacheService {
         `Found ${familyIds.length} families for user ${userId}: ${familyIds.join(', ')}`
       )
 
-      // Cache the result (1 hour TTL)
-      if (familyIds.length > 0) {
+      // Cache the result (1 hour TTL) (if enabled)
+      if (this.cacheEnabled && familyIds.length > 0) {
         await this.redisService.set(cacheKey, familyIds, this.TTL)
       }
 
@@ -208,11 +218,13 @@ export class CacheService {
     const cacheKey = `geofence:${familyId}`
 
     try {
-      // Try cache first
-      const cached = await this.redisService.get<Geofence[]>(cacheKey)
-      if (cached) {
-        this.logger.debug(`Cache hit for geofences: ${familyId}`)
-        return cached
+      // Try cache first (if enabled)
+      if (this.cacheEnabled) {
+        const cached = await this.redisService.get<Geofence[]>(cacheKey)
+        if (cached) {
+          this.logger.debug(`Cache hit for geofences: ${familyId}`)
+          return cached
+        }
       }
 
       // Cache miss - fetch from database using admin client (bypasses RLS)
@@ -237,8 +249,10 @@ export class CacheService {
 
       const geofences: Geofence[] = data || []
 
-      // Cache the result
-      await this.redisService.set(cacheKey, geofences, this.TTL)
+      // Cache the result (if enabled)
+      if (this.cacheEnabled) {
+        await this.redisService.set(cacheKey, geofences, this.TTL)
+      }
 
       return geofences
     } catch (error) {
@@ -277,9 +291,11 @@ export class CacheService {
     const cacheKey = `user:${userId}:family:${familyId}:last_location`
 
     try {
-      const cached = await this.redisService.get<LocationCache>(cacheKey)
-      if (cached) {
-        return cached
+      if (this.cacheEnabled) {
+        const cached = await this.redisService.get<LocationCache>(cacheKey)
+        if (cached) {
+          return cached
+        }
       }
 
       // Try to get from stream
@@ -300,8 +316,10 @@ export class CacheService {
           batteryLevel: parseInt(lastMessage.batteryLevel || '100')
         }
 
-        // Cache it
-        await this.redisService.set(cacheKey, location, 300) // 5 min TTL
+        // Cache it (if enabled)
+        if (this.cacheEnabled) {
+          await this.redisService.set(cacheKey, location, 300) // 5 min TTL
+        }
         return location
       }
 
@@ -316,7 +334,9 @@ export class CacheService {
     const cacheKey = `user:${location.user_id}:family:${location.family_id}:last_location`
 
     try {
-      await this.redisService.set(cacheKey, location, 300) // 5 min TTL
+      if (this.cacheEnabled) {
+        await this.redisService.set(cacheKey, location, 300) // 5 min TTL
+      }
     } catch (error) {
       this.logger.error(
         `Error caching location for ${location.user_id}:`,
@@ -353,10 +373,12 @@ export class CacheService {
     const cacheKey = `user:${userId}:family:${familyId}:role`
 
     try {
-      // Try cache first
-      const cached = await this.redisService.get<string>(cacheKey)
-      if (cached) {
-        return cached
+      // Try cache first (if enabled)
+      if (this.cacheEnabled) {
+        const cached = await this.redisService.get<string>(cacheKey)
+        if (cached) {
+          return cached
+        }
       }
 
       // Fetch from database
@@ -377,8 +399,10 @@ export class CacheService {
         return null
       }
 
-      // Cache the role
-      await this.redisService.set(cacheKey, data.role, this.TTL)
+      // Cache the role (if enabled)
+      if (this.cacheEnabled) {
+        await this.redisService.set(cacheKey, data.role, this.TTL)
+      }
 
       return data.role
     } catch (error) {
@@ -584,14 +608,16 @@ export class CacheService {
     const cacheKey = `user:${userId}:family:${familyId}:online`
 
     try {
-      if (isOnline) {
-        await this.redisService.set(
-          cacheKey,
-          { online: true, timestamp: Date.now() },
-          120
-        ) // 2 min TTL
-      } else {
-        await this.redisService.del(cacheKey)
+      if (this.cacheEnabled) {
+        if (isOnline) {
+          await this.redisService.set(
+            cacheKey,
+            { online: true, timestamp: Date.now() },
+            120
+          ) // 2 min TTL
+        } else {
+          await this.redisService.del(cacheKey)
+        }
       }
     } catch (error) {
       this.logger.error(`Error setting online status:`, error)
@@ -602,8 +628,11 @@ export class CacheService {
     const cacheKey = `user:${userId}:family:${familyId}:online`
 
     try {
-      const status = await this.redisService.get(cacheKey)
-      return status !== null
+      if (this.cacheEnabled) {
+        const status = await this.redisService.get(cacheKey)
+        return status !== null
+      }
+      return false
     } catch (error) {
       return false
     }

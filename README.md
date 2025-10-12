@@ -32,6 +32,32 @@
 $ pnpm install
 ```
 
+## Environment Configuration
+
+Copy `.env.example` to `.env` and configure your environment variables:
+
+```bash
+
+```
+
+### Cache Configuration
+
+The backend uses Redis for caching family members, locations, geofences, and roles. You can disable caching for debugging purposes:
+
+```bash
+# In .env
+CACHE_ENABLED=false  # Set to 'false' to disable all caching
+```
+
+When `CACHE_ENABLED=false`:
+
+- All data will be fetched directly from the database
+- No Redis cache reads or writes will occur
+- Useful for debugging cache-related issues
+- Performance will be slower but data will always be fresh
+
+Default: `CACHE_ENABLED=true`
+
 ## Compile and run the project
 
 ```bash
