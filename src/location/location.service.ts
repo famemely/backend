@@ -21,6 +21,11 @@ export class LocationService {
     const { family_id, ...locationData } = locationDto
 
     try {
+      // Get user info for name from family members
+      const members = await this.cacheService.getFamilyMembers(family_id)
+      const member = members.find((m) => m.user_id === userId)
+      const userName = member?.name || 'Unknown'
+
       // Check ghost mode status
       const ghostStatus = await this.ghostModeService.isGhostModeEnabled(
         userId,
@@ -45,12 +50,14 @@ export class LocationService {
       const streamKey = `locations:family:${family_id}`
       const messageId = await this.redisService.addToStream(streamKey, {
         user_id: userId,
+        user_name: userName,
         family_id,
         latitude: finalLocation.latitude,
         longitude: finalLocation.longitude,
         accuracy: finalLocation.accuracy,
         timestamp: locationData.timestamp,
         batteryLevel: locationData.batteryLevel,
+        batteryState: locationData.batteryState,
         ghost_mode: ghostStatus.enabled,
         ghost_scope: ghostStatus.scope,
         server_timestamp: Date.now()
@@ -74,16 +81,18 @@ export class LocationService {
       await this.redisService.publish(broadcastChannel, {
         type: 'location_update',
         user_id: userId,
+        user_name: userName,
         family_id,
         latitude: finalLocation.latitude,
         longitude: finalLocation.longitude,
         accuracy: finalLocation.accuracy,
         timestamp: locationData.timestamp,
-        batteryLevel: locationData.batteryLevel
+        batteryLevel: locationData.batteryLevel,
+        batteryState: locationData.batteryState
       })
 
       this.logger.log(
-        `Location update processed for user ${userId} in family ${family_id}${ghostStatus.enabled ? ' (ghost mode)' : ''}`
+        `Location update processed for user ${userName} (${userId}) in family ${family_id}${ghostStatus.enabled ? ' (ghost mode)' : ''}`
       )
 
       return {
